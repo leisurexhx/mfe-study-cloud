@@ -74,7 +74,7 @@ def create_app(
 
     app = FastAPI(
         title=PRODUCT_NAME,
-        version="1.0.0-rc.1",
+        version="1.0.0-rc.2",
         docs_url=None,
         redoc_url=None,
         openapi_url="/api/openapi.json",

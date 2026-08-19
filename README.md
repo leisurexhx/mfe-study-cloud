@@ -4,7 +4,7 @@ MFE Study Cloud is an open-source, cloud-hosted study reader for turning course 
 page-aligned bilingual explanations, formulas, terms, notes, and searchable learning history.
 It is designed as an installable PWA and a self-hosted server product.
 
-> Status: `v1.0.0-rc.1` release candidate, verified through a full Docker Compose build and
+> Status: `v1.0.0-rc.2` release candidate, verified through a full Docker Compose build and
 > Fake Provider product journey. The safe demo provider is the default, and real model calls are
 > never made unless a server administrator explicitly enables them.
 

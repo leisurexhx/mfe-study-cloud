@@ -60,6 +60,12 @@ Quota exhaustion becomes a non-retryable job state; transient rate limits use bo
 When multiple worker containers are deployed, divide the account request allowance between them,
 because the rolling limiter is shared within one worker process, not across hosts.
 
+The current OpenAI provider depends on Responses API PDF file input and structured parsing. An
+OpenAI-compatible Chat Completions endpoint is not a drop-in replacement: changing only the base
+URL would bypass required PDF handling and output validation. Providers such as DeepSeek require a
+dedicated implementation that extracts bounded page text locally, calls the supported chat API,
+validates the same output schema, and passes the privacy, budget, retry, and tenant-isolation gates.
+
 ## Hardening checklist
 
 - Restrict database and object storage to the private network.

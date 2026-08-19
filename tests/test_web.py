@@ -235,7 +235,7 @@ def test_pwa_manifest_and_worker_cache_only_public_assets(web: WebContext) -> No
     assert re.search(r"request\.mode === \"navigate\"", worker.text)
     openapi = web.client.get("/api/openapi.json")
     assert openapi.status_code == 200
-    assert openapi.json()["info"]["version"] == "1.0.0-rc.1"
+    assert openapi.json()["info"]["version"] == "1.0.0-rc.2"
 
 
 def test_api_requires_authentication(web: WebContext) -> None:

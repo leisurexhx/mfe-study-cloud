@@ -30,7 +30,7 @@ After the owner creates an empty GitHub repository and confirms the destination:
 ```bash
 git remote add origin git@github.com:OWNER/mfe-study-cloud.git
 git push -u origin main
-git push origin v1.0.0-rc.1
+git push origin v1.0.0-rc.2
 ```
 
 Enable branch protection, required CI, Dependabot, secret scanning, private vulnerability

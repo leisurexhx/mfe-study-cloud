@@ -6,6 +6,15 @@ All notable changes are documented here. This project follows Semantic Versionin
 
 - No changes yet.
 
+## [1.0.0-rc.2] - 2026-08-19
+
+### Changed
+
+- Raised the build and CI `setuptools` baseline to 83 after the GitHub Python 3.11 runner's
+  bundled version was reported under `PYSEC-2026-3447`.
+- Clarified that OpenAI-compatible Chat Completions endpoints cannot replace the current
+  Responses API PDF provider without a dedicated extraction and provider implementation.
+
 ## [1.0.0-rc.1] - 2026-08-19
 
 ### Added
