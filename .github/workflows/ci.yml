@@ -50,5 +50,12 @@ jobs:
           done
           docker compose logs
           exit 1
+      - name: Verify worker and fake-provider journey
+        run: |
+          docker compose ps --status running --services | grep --line-regexp worker
+          docker compose run --rm --no-deps \
+            --volume "$PWD/scripts/compose_smoke.py:/smoke.py:ro" \
+            --env MFE_SMOKE_BASE_URL=http://web:8080 \
+            web python /smoke.py
       - if: always()
         run: docker compose down --volumes

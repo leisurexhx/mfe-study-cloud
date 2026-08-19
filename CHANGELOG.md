@@ -23,3 +23,9 @@ All notable changes are documented here. This project follows Semantic Versionin
   sessions/CSRF/CSP, and privacy-safe service-worker caching.
 - Docker Compose development/production stacks, JSON logs, health checks, GitHub CI, dependency
   audit, privacy scan, governance templates, and anonymous fixtures.
+- Reusable full-stack Compose smoke journey covering Fake Provider analysis and tenant isolation.
+
+### Fixed
+
+- Prevented the non-HTTP Worker process from inheriting the Web process health check.
+- Embedded the pinned MinIO release and commit metadata in the source-built binary.

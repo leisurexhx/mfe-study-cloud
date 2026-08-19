@@ -100,6 +100,11 @@ services:
         condition: service_completed_successfully
       minio:
         condition: service_healthy
+    # The shared application image has an HTTP health check for the web process.
+    # Workers expose no HTTP port; process exit/restart plus the Compose smoke journey
+    # are the appropriate liveness and functional checks here.
+    healthcheck:
+      disable: true
     networks: [backend]
 
 volumes:

@@ -20,5 +20,16 @@ This matrix must be updated with fresh evidence immediately before tagging or pu
 | 14 | CI and packaging | Python 3.11/3.12 jobs, audit, build, Twine check, clean-wheel import |
 | 15 | Publication requires explicit approval | No remote/push/deploy; publication runbook only |
 
-Gate 3 remains a release blocker until the Compose smoke job or a fresh Docker host completes
-successfully. Do not create a release tag solely from static YAML validation.
+## Latest local release evidence
+
+Verified on 2026-08-19 with Docker Engine 29.5.3 and Docker Compose 5.1.4 in a clean temporary
+Linux environment:
+
+- `docker compose up --build -d` built the application and pinned MinIO source image.
+- PostgreSQL, MinIO, and Web reached healthy state; migrations exited successfully; Worker ran.
+- `scripts/compose_smoke.py` completed registration, course/chapter creation, anonymous PDF
+  upload, background Fake Provider analysis, page rendering, reading, notes, search, progress,
+  PWA manifest checks, and cross-tenant denial checks.
+- The expected terminal evidence was `COMPOSE_SMOKE_OK ... status=completed pages=2
+  isolation=verified`.
+- The stack was stopped and disposable volumes removed after verification.

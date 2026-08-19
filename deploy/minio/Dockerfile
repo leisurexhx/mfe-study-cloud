@@ -4,7 +4,12 @@ ARG MINIO_VERSION=RELEASE.2025-10-15T17-29-55Z
 RUN apk add --no-cache git
 RUN git clone --branch "${MINIO_VERSION}" --depth 1 https://github.com/minio/minio.git /src
 WORKDIR /src
-RUN CGO_ENABLED=0 go build -trimpath -o /out/minio .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    release_version="${MINIO_VERSION#RELEASE.}" \
+    && ldflags="$(MINIO_RELEASE=RELEASE go run buildscripts/gen-ldflags.go "${release_version}")" \
+    && CGO_ENABLED=0 GOPROXY="https://proxy.golang.org|direct" \
+       go build -tags kqueue -trimpath -ldflags "${ldflags}" -o /out/minio .
 
 FROM alpine:3.22
 RUN apk add --no-cache ca-certificates \
