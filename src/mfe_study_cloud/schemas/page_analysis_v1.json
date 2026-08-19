@@ -1,0 +1,322 @@
+{
+  "$defs": {
+    "BilingualTerm": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "maxLength": 20000,
+          "title": "Context",
+          "type": "string"
+        },
+        "definition": {
+          "maxLength": 20000,
+          "title": "Definition",
+          "type": "string"
+        },
+        "term_en": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Term En",
+          "type": "string"
+        },
+        "term_zh": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Term Zh",
+          "type": "string"
+        }
+      },
+      "required": [
+        "term_en",
+        "term_zh",
+        "definition",
+        "context"
+      ],
+      "title": "BilingualTerm",
+      "type": "object"
+    },
+    "Connections": {
+      "additionalProperties": false,
+      "properties": {
+        "next": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Next",
+          "type": "array"
+        },
+        "previous": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Previous",
+          "type": "array"
+        }
+      },
+      "required": [
+        "previous",
+        "next"
+      ],
+      "title": "Connections",
+      "type": "object"
+    },
+    "Formula": {
+      "additionalProperties": false,
+      "properties": {
+        "applications": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Applications",
+          "type": "array"
+        },
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "derivation": {
+          "$ref": "#/$defs/FormulaDerivation"
+        },
+        "explanation": {
+          "maxLength": 30000,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "latex": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "title": "Latex",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "variables": {
+          "items": {
+            "$ref": "#/$defs/FormulaVariable"
+          },
+          "maxItems": 100,
+          "title": "Variables",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "latex",
+        "variables",
+        "assumptions",
+        "explanation",
+        "applications",
+        "derivation"
+      ],
+      "title": "Formula",
+      "type": "object"
+    },
+    "FormulaDerivation": {
+      "additionalProperties": false,
+      "properties": {
+        "idea": {
+          "maxLength": 30000,
+          "title": "Idea",
+          "type": "string"
+        },
+        "is_derived": {
+          "title": "Is Derived",
+          "type": "boolean"
+        },
+        "result_check": {
+          "maxLength": 30000,
+          "title": "Result Check",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "is_derived",
+        "idea",
+        "steps",
+        "result_check"
+      ],
+      "title": "FormulaDerivation",
+      "type": "object"
+    },
+    "FormulaExplanation": {
+      "additionalProperties": false,
+      "properties": {
+        "formulas": {
+          "items": {
+            "$ref": "#/$defs/Formula"
+          },
+          "maxItems": 100,
+          "title": "Formulas",
+          "type": "array"
+        },
+        "has_formula": {
+          "title": "Has Formula",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "has_formula",
+        "formulas"
+      ],
+      "title": "FormulaExplanation",
+      "type": "object"
+    },
+    "FormulaVariable": {
+      "additionalProperties": false,
+      "properties": {
+        "meaning": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Meaning",
+          "type": "string"
+        },
+        "symbol": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Symbol",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol",
+        "meaning"
+      ],
+      "title": "FormulaVariable",
+      "type": "object"
+    },
+    "PageAnalysisOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "bilingual_terms": {
+          "items": {
+            "$ref": "#/$defs/BilingualTerm"
+          },
+          "maxItems": 500,
+          "title": "Bilingual Terms",
+          "type": "array"
+        },
+        "chinese_translation": {
+          "maxLength": 300000,
+          "title": "Chinese Translation",
+          "type": "string"
+        },
+        "common_mistakes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Common Mistakes",
+          "type": "array"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "connections": {
+          "$ref": "#/$defs/Connections"
+        },
+        "detailed_explanation": {
+          "maxLength": 300000,
+          "title": "Detailed Explanation",
+          "type": "string"
+        },
+        "extensions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Extensions",
+          "type": "array"
+        },
+        "formula_explanation": {
+          "$ref": "#/$defs/FormulaExplanation"
+        },
+        "key_points": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Key Points",
+          "type": "array"
+        },
+        "needs_review": {
+          "title": "Needs Review",
+          "type": "boolean"
+        },
+        "original_text": {
+          "maxLength": 200000,
+          "title": "Original Text",
+          "type": "string"
+        },
+        "page_number": {
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "page_overview": {
+          "maxLength": 30000,
+          "title": "Page Overview",
+          "type": "string"
+        }
+      },
+      "required": [
+        "page_number",
+        "original_text",
+        "chinese_translation",
+        "page_overview",
+        "detailed_explanation",
+        "formula_explanation",
+        "key_points",
+        "common_mistakes",
+        "bilingual_terms",
+        "connections",
+        "extensions",
+        "confidence",
+        "needs_review"
+      ],
+      "title": "PageAnalysisOutput",
+      "type": "object"
+    }
+  },
+  "$id": "https://example.invalid/mfe-study-cloud/schemas/page-analysis-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "pages": {
+      "items": {
+        "$ref": "#/$defs/PageAnalysisOutput"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Pages",
+      "type": "array"
+    }
+  },
+  "required": [
+    "pages"
+  ],
+  "title": "MFE Study Cloud page analysis v1",
+  "type": "object"
+}
