@@ -178,6 +178,7 @@ class AnalysisJob(TimestampMixin, Base):
     model: Mapped[str] = mapped_column(String(120), nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(100), nullable=False)
     schema_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
     total_pages: Mapped[int] = mapped_column(Integer, nullable=False)
     completed_pages: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     failed_pages: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -197,6 +198,9 @@ class AnalysisJob(TimestampMixin, Base):
     document: Mapped[Document] = relationship(back_populates="jobs")
 
     __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "idempotency_key", name="uq_analysis_jobs_tenant_idempotency"
+        ),
         CheckConstraint(
             "status IN ('queued', 'running', 'partial', 'completed', 'failed', 'cancelled')",
             name="analysis_job_status",

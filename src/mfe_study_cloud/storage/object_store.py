@@ -74,9 +74,14 @@ class S3ObjectStore:
         self._client = client
 
     def ensure_ready(self) -> None:
+        from botocore.exceptions import ClientError
+
         try:
             self._client.head_bucket(Bucket=self._bucket)
-        except Exception:
+        except ClientError as exc:
+            code = str(exc.response.get("Error", {}).get("Code", ""))
+            if code not in {"404", "NoSuchBucket", "NotFound"}:
+                raise
             self._client.create_bucket(Bucket=self._bucket)
 
     def put(self, key: str, data: bytes, *, content_type: str) -> None:

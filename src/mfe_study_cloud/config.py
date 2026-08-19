@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     analysis_max_attempts: int = Field(
         3, ge=1, le=10, validation_alias="MFE_ANALYSIS_MAX_ATTEMPTS"
     )
+    worker_poll_seconds: float = Field(
+        2.0, ge=0.1, le=60.0, validation_alias="MFE_WORKER_POLL_SECONDS"
+    )
 
     web_host: str = Field("0.0.0.0", validation_alias="MFE_WEB_HOST")
     web_port: int = Field(8080, ge=1, le=65535, validation_alias="MFE_WEB_PORT")
@@ -148,4 +151,3 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
-
