@@ -6,15 +6,29 @@ import hashlib
 import re
 import uuid
 from datetime import UTC, datetime
+from io import BytesIO
 
+import pypdfium2 as pdfium
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from mfe_study_cloud.analysis.pdf_batches import validate_pdf
-from mfe_study_cloud.db.models import Chapter, Course, Document, Note, ReadingProgress
+from mfe_study_cloud.db.models import (
+    Chapter,
+    Course,
+    Document,
+    Note,
+    PageAnalysis,
+    ReadingProgress,
+)
 from mfe_study_cloud.db.repositories import SearchHit, StudyRepository, TenantPrincipal
 from mfe_study_cloud.db.session import session_scope
 from mfe_study_cloud.services.errors import ConflictError, NotFoundError, ValidationError
-from mfe_study_cloud.storage import ObjectStore, document_object_key
+from mfe_study_cloud.storage import (
+    ObjectStore,
+    document_object_key,
+    rendered_page_object_key,
+)
 
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 _NOTE_TYPES = {"note", "question", "insight", "exam_focus"}
@@ -60,18 +74,44 @@ class StudyService:
     ) -> Course:
         clean_code = _bounded_text(code, field="Course code", maximum=32)
         clean_name = _bounded_text(name, field="Course name", maximum=300)
-        with session_scope(self._sessions) as session:
-            return StudyRepository(session, principal.tenant_id).add_course(
-                course_id=uuid.uuid4(),
-                code=clean_code,
-                name=clean_name,
-                semester=semester.strip()[:100] if semester and semester.strip() else None,
-                description=description.strip() if description and description.strip() else None,
-            )
+        clean_semester = semester.strip()[:100] if semester and semester.strip() else None
+        clean_description = description.strip() if description and description.strip() else None
+        try:
+            with session_scope(self._sessions) as session:
+                return StudyRepository(session, principal.tenant_id).add_course(
+                    course_id=uuid.uuid4(),
+                    code=clean_code,
+                    name=clean_name,
+                    semester=clean_semester,
+                    description=clean_description,
+                )
+        except IntegrityError as exc:
+            raise ConflictError("A course with this code already exists.") from exc
 
     def list_courses(self, principal: TenantPrincipal) -> list[Course]:
         with self._sessions() as session:
             return StudyRepository(session, principal.tenant_id).courses()
+
+    def course(self, principal: TenantPrincipal, course_id: uuid.UUID) -> Course:
+        with self._sessions() as session:
+            course = StudyRepository(session, principal.tenant_id).course(course_id)
+            if course is None:
+                raise NotFoundError("Course was not found.")
+            return course
+
+    def chapters(self, principal: TenantPrincipal, course_id: uuid.UUID) -> list[Chapter]:
+        with self._sessions() as session:
+            repository = StudyRepository(session, principal.tenant_id)
+            if repository.course(course_id) is None:
+                raise NotFoundError("Course was not found.")
+            return repository.chapters(course_id)
+
+    def documents(self, principal: TenantPrincipal, course_id: uuid.UUID) -> list[Document]:
+        with self._sessions() as session:
+            repository = StudyRepository(session, principal.tenant_id)
+            if repository.course(course_id) is None:
+                raise NotFoundError("Course was not found.")
+            return repository.documents(course_id)
 
     def create_chapter(
         self,
@@ -85,18 +125,22 @@ class StudyService:
     ) -> Chapter:
         clean_number = _bounded_text(number, field="Chapter number", maximum=32)
         clean_title = _bounded_text(title, field="Chapter title", maximum=300)
-        with session_scope(self._sessions) as session:
-            repository = StudyRepository(session, principal.tenant_id)
-            if repository.course(course_id) is None:
-                raise NotFoundError("Course was not found.")
-            return repository.add_chapter(
-                chapter_id=uuid.uuid4(),
-                course_id=course_id,
-                number=clean_number,
-                title=clean_title,
-                description=description.strip() if description and description.strip() else None,
-                sort_order=max(0, sort_order),
-            )
+        clean_description = description.strip() if description and description.strip() else None
+        try:
+            with session_scope(self._sessions) as session:
+                repository = StudyRepository(session, principal.tenant_id)
+                if repository.course(course_id) is None:
+                    raise NotFoundError("Course was not found.")
+                return repository.add_chapter(
+                    chapter_id=uuid.uuid4(),
+                    course_id=course_id,
+                    number=clean_number,
+                    title=clean_title,
+                    description=clean_description,
+                    sort_order=max(0, sort_order),
+                )
+        except IntegrityError as exc:
+            raise ConflictError("A chapter with this number already exists.") from exc
 
     def upload_document(
         self,
@@ -144,6 +188,10 @@ class StudyService:
                     size_bytes=len(data),
                     page_count=page_count,
                 )
+        except IntegrityError as exc:
+            if stored:
+                self._objects.delete(object_key)
+            raise ConflictError("This PDF is already registered in the workspace.") from exc
         except Exception:
             if stored:
                 self._objects.delete(object_key)
@@ -156,6 +204,74 @@ class StudyService:
                 raise NotFoundError("Document was not found.")
             object_key = document.object_key
         return self._objects.get(object_key)
+
+    def document(self, principal: TenantPrincipal, document_id: uuid.UUID) -> Document:
+        with self._sessions() as session:
+            document = StudyRepository(session, principal.tenant_id).document(document_id)
+            if document is None:
+                raise NotFoundError("Document was not found.")
+            return document
+
+    def analyses(self, principal: TenantPrincipal, document_id: uuid.UUID) -> list[PageAnalysis]:
+        with self._sessions() as session:
+            repository = StudyRepository(session, principal.tenant_id)
+            if repository.document(document_id) is None:
+                raise NotFoundError("Document was not found.")
+            return repository.analyses(document_id)
+
+    def notes_for_document(
+        self, principal: TenantPrincipal, document_id: uuid.UUID
+    ) -> list[Note]:
+        with self._sessions() as session:
+            repository = StudyRepository(session, principal.tenant_id)
+            if repository.document(document_id) is None:
+                raise NotFoundError("Document was not found.")
+            return repository.document_notes(
+                document_id=document_id,
+                user_id=principal.user_id,
+            )
+
+    def rendered_page(
+        self,
+        principal: TenantPrincipal,
+        *,
+        document_id: uuid.UUID,
+        page_number: int,
+        width: int,
+    ) -> bytes:
+        document = self.document(principal, document_id)
+        if not 1 <= page_number <= document.page_count:
+            raise NotFoundError("Document page was not found.")
+        bounded_width = max(640, min(width, 2000))
+        cache_key = rendered_page_object_key(
+            principal.tenant_id,
+            document_id,
+            page_number,
+            bounded_width,
+        )
+        try:
+            return self._objects.get(cache_key)
+        except FileNotFoundError:
+            pass
+        source = self._objects.get(document.object_key)
+        pdf = pdfium.PdfDocument(source)
+        page = pdf.get_page(page_number - 1)
+        bitmap = None
+        try:
+            page_width, _ = page.get_size()
+            scale = bounded_width / page_width
+            bitmap = page.render(scale=scale)
+            image = bitmap.to_pil()
+            output = BytesIO()
+            image.save(output, format="PNG", optimize=True)
+            rendered = output.getvalue()
+        finally:
+            if bitmap is not None:
+                bitmap.close()
+            page.close()
+            pdf.close()
+        self._objects.put(cache_key, rendered, content_type="image/png")
+        return rendered
 
     def add_note(
         self,

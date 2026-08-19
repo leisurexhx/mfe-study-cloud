@@ -67,6 +67,17 @@ class TenantJobRepository:
             )
         )
 
+    def latest_for_document(self, document_id: uuid.UUID) -> AnalysisJob | None:
+        return self._session.scalar(
+            select(AnalysisJob)
+            .where(
+                AnalysisJob.tenant_id == self.tenant_id,
+                AnalysisJob.document_id == document_id,
+            )
+            .order_by(AnalysisJob.created_at.desc(), AnalysisJob.id.desc())
+            .limit(1)
+        )
+
     def add_job(
         self,
         *,

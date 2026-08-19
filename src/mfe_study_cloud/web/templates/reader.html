@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ document.title }} · {{ product_name }}{% endblock %}
+{% block content %}
+<nav class="breadcrumbs"><a href="/courses/{{ document.course_id }}">返回课程</a><span>/</span><span>{{ document.title }}</span></nav>
+<section class="reader-toolbar">
+  <div><p class="eyebrow">{{ document.page_count }} PAGES</p><h1>{{ document.title }}</h1></div>
+  <div class="toolbar-actions">
+    <a class="secondary-button" href="/documents/{{ document.id }}/source.pdf" target="_blank" rel="noopener">原始 PDF</a>
+    {% if not job %}
+    <form action="/documents/{{ document.id }}/analysis" method="post"><button class="primary" type="submit">开始分析</button></form>
+    {% elif job.status in ["failed", "partial", "cancelled"] %}
+    <form action="/jobs/{{ job.id }}/retry" method="post"><button class="primary" type="submit">继续 / 重试</button></form>
+    {% endif %}
+  </div>
+</section>
+{% if job %}
+<section class="job-strip" data-job-url="/api/v1/jobs/{{ job.id }}">
+  <span class="status-dot {{ job.status }}"></span>
+  <strong data-job-status>{{ job.status }}</strong>
+  <span data-job-progress>{{ job.completed_pages }} / {{ job.total_pages }} 页</span>
+  {% if job.error_summary %}<span class="job-error">{{ job.error_summary }}</span>{% endif %}
+  {% if job.status in ["queued", "running"] %}<form action="/jobs/{{ job.id }}/cancel" method="post"><button class="link-button" type="submit">取消</button></form>{% endif %}
+</section>
+{% endif %}
+<nav class="page-nav" aria-label="页面选择">
+  {% if page > 1 %}<a href="?page={{ page - 1 }}">← 上一页</a>{% else %}<span></span>{% endif %}
+  <span>第 <strong>{{ page }}</strong> / {{ document.page_count }} 页</span>
+  {% if page < document.page_count %}<a href="?page={{ page + 1 }}">下一页 →</a>{% else %}<span></span>{% endif %}
+</nav>
+<section class="reader-grid" data-progress-url="/api/v1/documents/{{ document.id }}/progress" data-page="{{ page }}">
+  <div class="pdf-stage"><img src="/documents/{{ document.id }}/pages/{{ page }}.png?width=1200" alt="{{ document.title }} 第 {{ page }} 页"></div>
+  <article class="analysis-pane">
+    {% if analysis %}
+      {% set data = analysis.payload %}
+      <p class="eyebrow">PAGE {{ page }} ANALYSIS</p>
+      <h2>{{ data.page_overview }}</h2>
+      <section><h3>中文翻译</h3><p class="long-text">{{ data.chinese_translation }}</p></section>
+      <section><h3>详细解释</h3><p class="long-text">{{ data.detailed_explanation }}</p></section>
+      {% if data.key_points %}<section><h3>关键点</h3><ul>{% for point in data.key_points %}<li>{{ point }}</li>{% endfor %}</ul></section>{% endif %}
+      {% if data.bilingual_terms %}<section><h3>双语术语</h3><dl class="term-list">{% for term in data.bilingual_terms %}<div><dt>{{ term.term_en }} · {{ term.term_zh }}</dt><dd>{{ term.definition }}</dd></div>{% endfor %}</dl></section>{% endif %}
+    {% else %}
+      <div class="empty-state"><h2>本页尚未分析</h2><p>启动分析任务后，Worker 会逐批写入页面结果。</p></div>
+    {% endif %}
+    <section class="note-box">
+      <h3>添加本页笔记</h3>
+      <form class="form-stack" action="/documents/{{ document.id }}/notes" method="post">
+        <input type="hidden" name="page_number" value="{{ page }}">
+        <select name="note_type" aria-label="笔记类型"><option value="note">笔记</option><option value="question">问题</option><option value="insight">洞察</option><option value="exam_focus">考试重点</option></select>
+        <textarea name="content" maxlength="20000" rows="4" required placeholder="记录理解、疑问或考点…"></textarea>
+        <button type="submit">保存笔记</button>
+      </form>
+      {% for note in notes if note.page_number == page %}<blockquote><span>{{ note.note_type }}</span>{{ note.content }}</blockquote>{% endfor %}
+    </section>
+  </article>
+</section>
+{% endblock %}

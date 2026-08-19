@@ -51,9 +51,14 @@ class AuthRepository:
 
     def principal(self, user_id: uuid.UUID, tenant_id: uuid.UUID) -> TenantPrincipal | None:
         row = self._session.execute(
-            select(Membership.user_id, Membership.tenant_id, Membership.role).where(
+            select(Membership.user_id, Membership.tenant_id, Membership.role)
+            .join(User, User.id == Membership.user_id)
+            .join(Tenant, Tenant.id == Membership.tenant_id)
+            .where(
                 Membership.user_id == user_id,
                 Membership.tenant_id == tenant_id,
+                User.is_active.is_(True),
+                Tenant.status == "active",
             )
         ).one_or_none()
         if row is None:
@@ -63,7 +68,10 @@ class AuthRepository:
     def first_principal(self, user_id: uuid.UUID) -> TenantPrincipal | None:
         row = self._session.execute(
             select(Membership.user_id, Membership.tenant_id, Membership.role)
+            .join(User, User.id == Membership.user_id)
+            .join(Tenant, Tenant.id == Membership.tenant_id)
             .where(Membership.user_id == user_id)
+            .where(User.is_active.is_(True), Tenant.status == "active")
             .order_by(Membership.created_at, Membership.tenant_id)
             .limit(1)
         ).one_or_none()
@@ -208,6 +216,19 @@ class StudyRepository:
             )
         )
 
+    def analyses(self, document_id: uuid.UUID) -> list[PageAnalysis]:
+        return list(
+            self._session.scalars(
+                select(PageAnalysis)
+                .where(
+                    PageAnalysis.tenant_id == self.tenant_id,
+                    PageAnalysis.document_id == document_id,
+                    PageAnalysis.is_active.is_(True),
+                )
+                .order_by(PageAnalysis.page_number)
+            )
+        )
+
     def add_document(
         self,
         *,
@@ -274,6 +295,19 @@ class StudyRepository:
                     Note.user_id == user_id,
                 )
                 .order_by(Note.updated_at.desc(), Note.id)
+            )
+        )
+
+    def document_notes(self, *, document_id: uuid.UUID, user_id: uuid.UUID) -> list[Note]:
+        return list(
+            self._session.scalars(
+                select(Note)
+                .where(
+                    Note.tenant_id == self.tenant_id,
+                    Note.document_id == document_id,
+                    Note.user_id == user_id,
+                )
+                .order_by(Note.page_number, Note.updated_at.desc(), Note.id)
             )
         )
 

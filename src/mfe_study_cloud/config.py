@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -106,6 +107,9 @@ class Settings(BaseSettings):
         validation_alias="MFE_MAX_UPLOAD_BYTES",
     )
     secure_cookies: bool = Field(False, validation_alias="MFE_SECURE_COOKIES")
+    allowed_hosts: str = Field(
+        "localhost,127.0.0.1,testserver", validation_alias="MFE_ALLOWED_HOSTS"
+    )
     log_level: str = Field("INFO", validation_alias="MFE_LOG_LEVEL")
 
     @field_validator("app_name", "object_bucket")
@@ -132,6 +136,8 @@ class Settings(BaseSettings):
                 raise ValueError("production requires MFE_SECURE_COOKIES=true")
             if not self.public_base_url.startswith("https://"):
                 raise ValueError("production requires an https public base URL")
+            if "*" in self.allowed_host_list:
+                raise ValueError("production does not allow wildcard trusted hosts")
         if self.analysis_provider == "openai":
             if not self.openai_api_key or not self.openai_api_key.get_secret_value().strip():
                 raise ValueError("OpenAI provider requires OPENAI_API_KEY")
@@ -146,6 +152,19 @@ class Settings(BaseSettings):
         if self.analysis_provider == "disabled":
             return False
         return bool(self.openai_api_key and self.openai_model)
+
+    @property
+    def allowed_host_list(self) -> list[str]:
+        hosts = {item.strip() for item in self.allowed_hosts.split(",") if item.strip()}
+        public_host = urlsplit(self.public_base_url).hostname
+        if public_host:
+            hosts.add(public_host)
+        return sorted(hosts)
+
+    @property
+    def public_origin(self) -> str:
+        parsed = urlsplit(self.public_base_url)
+        return f"{parsed.scheme}://{parsed.netloc}"
 
 
 @lru_cache(maxsize=1)

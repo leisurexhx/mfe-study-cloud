@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}搜索 · {{ product_name }}{% endblock %}
+{% block content %}
+<section class="hero compact"><div><p class="eyebrow">TENANT-SCOPED SEARCH</p><h1>搜索解释与笔记</h1><p>结果只来自当前工作区。</p></div></section>
+<form class="search-bar" action="/search" method="get"><input type="search" name="q" value="{{ query }}" maxlength="500" placeholder="输入术语、公式或笔记内容" autofocus><button class="primary" type="submit">搜索</button></form>
+<section class="search-results">
+  {% for hit in hits %}
+  <a class="search-hit" href="{{ '/documents/' ~ hit.document_id ~ '?page=' ~ hit.page_number if hit.document_id and hit.page_number else '#' }}">
+    <span>{{ hit.source }}</span><p>{{ hit.text }}</p>
+  </a>
+  {% else %}{% if query %}<div class="empty-state"><h3>没有匹配结果</h3><p>尝试更短的中文或英文关键词。</p></div>{% endif %}{% endfor %}
+</section>
+{% endblock %}

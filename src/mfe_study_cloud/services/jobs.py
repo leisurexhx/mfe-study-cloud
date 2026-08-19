@@ -89,6 +89,16 @@ class JobService:
                 raise NotFoundError("Analysis job was not found.")
             return job
 
+    def latest_for_document(
+        self, principal: TenantPrincipal, *, document_id: uuid.UUID
+    ) -> AnalysisJob | None:
+        with self._sessions() as session:
+            if StudyRepository(session, principal.tenant_id).document(document_id) is None:
+                raise NotFoundError("Document was not found.")
+            return TenantJobRepository(
+                session, principal.tenant_id
+            ).latest_for_document(document_id)
+
     def cancel(self, principal: TenantPrincipal, *, job_id: uuid.UUID) -> AnalysisJob:
         with session_scope(self._sessions) as session:
             job = TenantJobRepository(session, principal.tenant_id).request_cancel(job_id)

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#16352d">
+    <meta name="description" content="Private, self-hosted PDF study workspace">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/static/icon-192.png">
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="/static/app.js" defer></script>
+    <title>{% block title %}{{ product_name }}{% endblock %}</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">MFE <span>Study Cloud</span></a>
+      {% if principal %}
+      <nav aria-label="主导航">
+        <a href="/dashboard">课程</a>
+        <a href="/search">搜索</a>
+        <form action="/logout" method="post"><button class="link-button" type="submit">退出</button></form>
+      </nav>
+      {% else %}
+      <nav aria-label="主导航">
+        <a href="/login">登录</a>
+        <a href="/register">注册</a>
+      </nav>
+      {% endif %}
+    </header>
+    <main class="page-shell">{% block content %}{% endblock %}</main>
+    <footer class="site-footer">Self-hosted · Tenant-isolated · Provider keys stay server-side</footer>
+  </body>
+</html>

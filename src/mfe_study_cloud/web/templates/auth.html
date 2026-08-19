@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ "创建账户" if mode == "register" else "登录" }} · {{ product_name }}{% endblock %}
+{% block content %}
+<section class="auth-layout">
+  <div class="auth-story">
+    <p class="eyebrow">PAGE-ALIGNED STUDY</p>
+    <h1>让 PDF 变成可追踪、可检索的学习过程。</h1>
+    <p>原始页面、中文解释、公式、术语与笔记保持同页对齐。默认演示模式不会访问外部模型。</p>
+  </div>
+  <form class="panel form-stack" method="post" action="/{{ mode }}">
+    <h2>{{ "创建私有工作区" if mode == "register" else "回到工作区" }}</h2>
+    {% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+    {% if mode == "register" %}
+    <label>显示名称<input name="display_name" value="{{ display_name or '' }}" maxlength="120" required autocomplete="name"></label>
+    {% endif %}
+    <label>邮箱<input type="email" name="email" value="{{ email or '' }}" maxlength="320" required autocomplete="email"></label>
+    <label>密码<input type="password" name="password" minlength="12" maxlength="256" required autocomplete="{{ 'new-password' if mode == 'register' else 'current-password' }}"></label>
+    <button class="primary" type="submit">{{ "创建账户" if mode == "register" else "登录" }}</button>
+    <p class="muted">
+      {% if mode == "register" %}已有账户？<a href="/login">登录</a>{% else %}第一次使用？<a href="/register">注册</a>{% endif %}
+    </p>
+  </form>
+</section>
+{% endblock %}

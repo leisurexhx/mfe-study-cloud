@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}课程 · {{ product_name }}{% endblock %}
+{% block content %}
+<section class="hero compact">
+  <div><p class="eyebrow">YOUR WORKSPACE</p><h1>课程资料库</h1><p>从课程开始组织章节、PDF 与分析任务。</p></div>
+  <span class="metric">{{ courses|length }}<small>门课程</small></span>
+</section>
+<section class="content-grid">
+  <div>
+    <div class="section-heading"><h2>最近课程</h2></div>
+    <div class="card-grid">
+      {% for course in courses %}
+      <a class="course-card" href="/courses/{{ course.id }}">
+        <span class="course-code">{{ course.code }}</span>
+        <h3>{{ course.name }}</h3>
+        <p>{{ course.semester or "未设置学期" }}</p>
+        <span class="arrow">进入课程 →</span>
+      </a>
+      {% else %}
+      <div class="empty-state"><h3>还没有课程</h3><p>使用右侧表单创建第一门课程。</p></div>
+      {% endfor %}
+    </div>
+  </div>
+  <aside class="panel sticky-panel">
+    <h2>新建课程</h2>
+    <form class="form-stack" action="/courses" method="post">
+      <label>课程代码<input name="code" maxlength="32" placeholder="MFE-101" required></label>
+      <label>课程名称<input name="name" maxlength="300" placeholder="Financial Engineering" required></label>
+      <label>学期<input name="semester" maxlength="100" placeholder="2026 Fall"></label>
+      <button class="primary" type="submit">创建课程</button>
+    </form>
+  </aside>
+</section>
+{% endblock %}

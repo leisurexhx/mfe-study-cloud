@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ course.code }} · {{ product_name }}{% endblock %}
+{% block content %}
+<nav class="breadcrumbs"><a href="/dashboard">课程</a><span>/</span><span>{{ course.code }}</span></nav>
+<section class="hero compact course-hero">
+  <div><p class="eyebrow">{{ course.code }}</p><h1>{{ course.name }}</h1><p>{{ course.semester or "持续学习" }}</p></div>
+  <span class="metric">{{ documents|length }}<small>份 PDF</small></span>
+</section>
+<section class="content-grid">
+  <div>
+    <div class="section-heading"><h2>资料</h2><span>{{ chapters|length }} 个章节</span></div>
+    {% for chapter in chapters %}
+    <article class="chapter-block">
+      <div class="chapter-heading"><span>{{ chapter.number }}</span><h3>{{ chapter.title }}</h3></div>
+      <div class="document-list">
+        {% for document in documents if document.chapter_id == chapter.id %}
+        <a href="/documents/{{ document.id }}" class="document-row">
+          <span class="file-mark">PDF</span>
+          <span><strong>{{ document.title }}</strong><small>{{ document.page_count }} 页 · {{ document.status }}</small></span>
+          <span>→</span>
+        </a>
+        {% else %}<p class="muted inset">本章还没有 PDF。</p>{% endfor %}
+      </div>
+      <form class="upload-row" action="/courses/{{ course.id }}/chapters/{{ chapter.id }}/documents" method="post" enctype="multipart/form-data">
+        <input type="file" name="document" accept="application/pdf,.pdf" required aria-label="选择 PDF">
+        <input name="title" maxlength="500" placeholder="可选标题" aria-label="文档标题">
+        <button type="submit">上传 PDF</button>
+      </form>
+    </article>
+    {% else %}<div class="empty-state"><h3>先创建章节</h3><p>PDF 必须归属一个章节。</p></div>{% endfor %}
+  </div>
+  <aside class="panel sticky-panel">
+    <h2>添加章节</h2>
+    <form class="form-stack" action="/courses/{{ course.id }}/chapters" method="post">
+      <label>编号<input name="number" maxlength="32" placeholder="1" required></label>
+      <label>标题<input name="title" maxlength="300" placeholder="Foundations" required></label>
+      <button class="primary" type="submit">添加章节</button>
+    </form>
+  </aside>
+</section>
+{% endblock %}
