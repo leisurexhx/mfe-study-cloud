@@ -250,7 +250,13 @@ def _add_routes(app: FastAPI) -> None:
         principal: Annotated[TenantPrincipal, Depends(_principal)],
     ) -> Response:
         courses = request.app.state.study.list_courses(principal)
-        return _render(request, "dashboard.html", courses=courses)
+        return _render(
+            request,
+            "dashboard.html",
+            courses=courses,
+            recent_reading=request.app.state.study.recent_reading(principal),
+            recent_jobs=request.app.state.jobs.recent(principal),
+        )
 
     @app.post("/courses", name="create_course")
     async def create_course(

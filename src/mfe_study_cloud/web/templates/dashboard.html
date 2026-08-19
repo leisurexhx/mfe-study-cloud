@@ -7,6 +7,28 @@
 </section>
 <section class="content-grid">
   <div>
+    {% if recent_reading %}
+    <div class="section-heading"><h2>继续阅读</h2></div>
+    <div class="activity-list">
+      {% for item in recent_reading %}
+      <a href="/documents/{{ item.document_id }}?page={{ item.last_page }}">
+        <span><strong>{{ item.document_title }}</strong><small>{{ item.course_name }}</small></span>
+        <span>第 {{ item.last_page }} / {{ item.page_count }} 页 →</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if recent_jobs %}
+    <div class="section-heading activity-heading"><h2>分析进度</h2></div>
+    <div class="activity-list">
+      {% for job in recent_jobs %}
+      <a href="/documents/{{ job.document_id }}">
+        <span><strong>{{ job.document_title }}</strong><small>{{ job.status }}</small></span>
+        <span>{{ job.completed_pages }} / {{ job.total_pages }} 页</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
     <div class="section-heading"><h2>最近课程</h2></div>
     <div class="card-grid">
       {% for course in courses %}

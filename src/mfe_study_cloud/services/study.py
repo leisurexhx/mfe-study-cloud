@@ -21,7 +21,12 @@ from mfe_study_cloud.db.models import (
     PageAnalysis,
     ReadingProgress,
 )
-from mfe_study_cloud.db.repositories import SearchHit, StudyRepository, TenantPrincipal
+from mfe_study_cloud.db.repositories import (
+    RecentReading,
+    SearchHit,
+    StudyRepository,
+    TenantPrincipal,
+)
 from mfe_study_cloud.db.session import session_scope
 from mfe_study_cloud.services.errors import ConflictError, NotFoundError, ValidationError
 from mfe_study_cloud.storage import (
@@ -91,6 +96,12 @@ class StudyService:
     def list_courses(self, principal: TenantPrincipal) -> list[Course]:
         with self._sessions() as session:
             return StudyRepository(session, principal.tenant_id).courses()
+
+    def recent_reading(self, principal: TenantPrincipal) -> list[RecentReading]:
+        with self._sessions() as session:
+            return StudyRepository(session, principal.tenant_id).recent_reading(
+                user_id=principal.user_id
+            )
 
     def course(self, principal: TenantPrincipal, course_id: uuid.UUID) -> Course:
         with self._sessions() as session:

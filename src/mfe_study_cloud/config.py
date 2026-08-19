@@ -14,6 +14,7 @@ from mfe_study_cloud.branding import PRODUCT_NAME
 Environment = Literal["development", "test", "production"]
 ProviderName = Literal["fake", "disabled", "openai"]
 PdfDetail = Literal["auto", "low", "high"]
+ObjectSse = Literal["none", "AES256"]
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 
 
@@ -58,6 +59,7 @@ class Settings(BaseSettings):
         validation_alias="MFE_OBJECT_SECRET_KEY",
     )
     object_secure: bool = Field(False, validation_alias="MFE_OBJECT_SECURE")
+    object_sse: ObjectSse = Field("none", validation_alias="MFE_OBJECT_SSE")
 
     analysis_provider: ProviderName = Field(
         "fake", validation_alias="MFE_ANALYSIS_PROVIDER"
@@ -82,6 +84,18 @@ class Settings(BaseSettings):
     analysis_max_output_tokens: int = Field(
         20_000, ge=1000, le=128_000, validation_alias="MFE_ANALYSIS_MAX_OUTPUT_TOKENS"
     )
+    analysis_job_max_output_tokens: int = Field(
+        200_000,
+        ge=1000,
+        le=10_000_000,
+        validation_alias="MFE_ANALYSIS_JOB_MAX_OUTPUT_TOKENS",
+    )
+    analysis_requests_per_minute: int = Field(
+        60,
+        ge=1,
+        le=10_000,
+        validation_alias="MFE_ANALYSIS_REQUESTS_PER_MINUTE",
+    )
     analysis_max_input_bytes: int = Field(
         50 * 1024 * 1024,
         ge=1024,
@@ -98,7 +112,11 @@ class Settings(BaseSettings):
         2.0, ge=0.1, le=60.0, validation_alias="MFE_WORKER_POLL_SECONDS"
     )
 
-    web_host: str = Field("0.0.0.0", validation_alias="MFE_WEB_HOST")
+    # Container ingress is restricted by Compose and the reverse proxy.
+    web_host: str = Field(
+        "0.0.0.0",  # nosec B104
+        validation_alias="MFE_WEB_HOST",
+    )
     web_port: int = Field(8080, ge=1, le=65535, validation_alias="MFE_WEB_PORT")
     max_upload_bytes: int = Field(
         50 * 1024 * 1024,
@@ -138,11 +156,18 @@ class Settings(BaseSettings):
                 raise ValueError("production requires an https public base URL")
             if "*" in self.allowed_host_list:
                 raise ValueError("production does not allow wildcard trusted hosts")
+            if self.object_sse != "AES256":
+                raise ValueError("production requires MFE_OBJECT_SSE=AES256")
         if self.analysis_provider == "openai":
             if not self.openai_api_key or not self.openai_api_key.get_secret_value().strip():
                 raise ValueError("OpenAI provider requires OPENAI_API_KEY")
             if not self.openai_model:
                 raise ValueError("OpenAI provider requires OPENAI_MODEL")
+        if self.analysis_job_max_output_tokens < self.analysis_max_output_tokens:
+            raise ValueError(
+                "MFE_ANALYSIS_JOB_MAX_OUTPUT_TOKENS must be at least "
+                "MFE_ANALYSIS_MAX_OUTPUT_TOKENS"
+            )
         return self
 
     @property

@@ -21,6 +21,9 @@ class ProviderSchemaError(AnalysisError):
     pass
 
 
+class ProviderQuotaError(AnalysisError):
+    """The provider account cannot accept paid work until an administrator acts."""
+
+
 class ProviderTransientError(AnalysisError):
     retryable = True
-

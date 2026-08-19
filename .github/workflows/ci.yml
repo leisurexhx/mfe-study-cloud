@@ -9,19 +9,46 @@ permissions:
 
 jobs:
   quality:
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
     runs-on: ubuntu-latest
     env:
       MFE_ANALYSIS_PROVIDER: fake
       OPENAI_API_KEY: ""
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
       - run: python -m ruff check .
       - run: python -m mypy
       - run: python -m pytest
+      - run: python scripts/privacy_scan.py --history
+      - run: python -m bandit -q -r src -c pyproject.toml
+      - run: python -m pip_audit --skip-editable
+      - run: python -m build
+      - run: python -m twine check dist/*
 
+  containers:
+    runs-on: ubuntu-latest
+    env:
+      MFE_ANALYSIS_PROVIDER: fake
+      OPENAI_API_KEY: ""
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose config --quiet
+      - run: docker compose up --build --detach
+      - name: Wait for the web service
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8080/health/ready; then exit 0; fi
+            sleep 5
+          done
+          docker compose logs
+          exit 1
+      - if: always()
+        run: docker compose down --volumes

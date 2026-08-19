@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=75", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,13 +7,13 @@ name = "mfe-study-cloud"
 version = "1.0.0rc1"
 description = "Open-source, cloud-hosted PDF study reader with structured AI analysis"
 readme = "README.md"
-license = {text = "AGPL-3.0-only"}
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 authors = [{name = "MFE Study Cloud contributors"}]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Framework :: FastAPI",
-  "License :: OSI Approved :: GNU Affero General Public License v3",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -40,11 +40,16 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "httpx>=0.28,<1",
+  "bandit[toml]>=1.8,<2",
+  "build>=1.2,<2",
+  "httpx2>=2,<3",
   "mypy>=1.14,<2",
-  "pytest>=8.3,<9",
+  "pip-audit>=2.9,<3",
+  "pip-licenses>=5.0,<6",
+  "pytest>=9.0.3,<10",
   "pytest-cov>=6,<8",
   "ruff>=0.9,<1",
+  "twine>=6.1,<7",
   "types-boto3[s3]>=1.35,<2",
   "types-jsonschema>=4.23,<5",
 ]
@@ -89,3 +94,7 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = ["boto3.*", "botocore.*", "pypdfium2.*"]
 ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "build", "dist"]
+skips = ["B101"]

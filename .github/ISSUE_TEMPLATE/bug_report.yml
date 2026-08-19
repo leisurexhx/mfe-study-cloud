@@ -1,0 +1,25 @@
+name: Bug report
+description: Report a reproducible problem without private content.
+body:
+  - type: markdown
+    attributes:
+      value: Never attach credentials, private PDFs, user data, or raw production logs.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: Use an anonymous reproduction and redact identifiers.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true

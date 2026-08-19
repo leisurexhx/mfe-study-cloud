@@ -16,8 +16,14 @@ from mfe_study_cloud.storage import (
 
 
 class FakeS3Client:
-    def __init__(self, *, head_error: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        head_error: str | None = None,
+        create_error: str | None = None,
+    ) -> None:
         self.head_error = head_error
+        self.create_error = create_error
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     def head_bucket(self, **kwargs: Any) -> None:
@@ -30,6 +36,11 @@ class FakeS3Client:
 
     def create_bucket(self, **kwargs: Any) -> None:
         self.calls.append(("create", kwargs))
+        if self.create_error:
+            raise ClientError(
+                {"Error": {"Code": self.create_error, "Message": "test"}},
+                "CreateBucket",
+            )
 
     def put_object(self, **kwargs: Any) -> None:
         self.calls.append(("put", kwargs))
@@ -43,7 +54,11 @@ class FakeS3Client:
 
 
 def _settings() -> Settings:
-    return Settings(MFE_ENV="test", MFE_OBJECT_BUCKET="unit-test-bucket")
+    return Settings(
+        MFE_ENV="test",
+        MFE_OBJECT_BUCKET="unit-test-bucket",
+        MFE_OBJECT_SSE="AES256",
+    )
 
 
 def test_s3_store_creates_only_a_missing_bucket_and_encrypts_puts() -> None:
@@ -68,6 +83,17 @@ def test_s3_store_does_not_mask_permission_errors_as_missing_buckets() -> None:
     with pytest.raises(ClientError):
         store.ensure_ready()
     assert [name for name, _ in client.calls] == ["head"]
+
+
+def test_s3_store_tolerates_another_worker_winning_bucket_creation_race() -> None:
+    client = FakeS3Client(
+        head_error="NoSuchBucket",
+        create_error="BucketAlreadyOwnedByYou",
+    )
+
+    S3ObjectStore(_settings(), client=client).ensure_ready()
+
+    assert [name for name, _ in client.calls] == ["head", "create"]
 
 
 def test_object_keys_are_server_scoped_and_render_width_is_bounded() -> None:

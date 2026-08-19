@@ -11,7 +11,9 @@ from collections.abc import Callable
 from mfe_study_cloud.analysis.provider import build_provider
 from mfe_study_cloud.config import Settings, get_settings
 from mfe_study_cloud.db.session import create_session_factory
+from mfe_study_cloud.jobs.rate_limit import ProviderRateLimiter
 from mfe_study_cloud.jobs.runner import WorkerRunner
+from mfe_study_cloud.logging_config import configure_logging
 from mfe_study_cloud.storage import S3ObjectStore
 
 logger = logging.getLogger(__name__)
@@ -39,6 +41,7 @@ def run_worker_pool(
         readiness_store = S3ObjectStore(settings)
         readiness_store.ensure_ready()
         instance_id = uuid.uuid4().hex[:12]
+        rate_limiter = ProviderRateLimiter(settings.analysis_requests_per_minute)
 
         def runner_factory(index: int) -> WorkerRunner:
             return WorkerRunner(
@@ -47,6 +50,7 @@ def run_worker_pool(
                 provider=build_provider(settings),
                 settings=settings,
                 worker_id=f"worker-{instance_id}-{index}",
+                rate_limiter=rate_limiter,
             )
 
     threads = [
@@ -71,10 +75,7 @@ def run_worker_pool(
 
 def main() -> None:
     settings = get_settings()
-    logging.basicConfig(
-        level=getattr(logging, settings.log_level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
+    configure_logging(settings.log_level)
     stop = threading.Event()
     _install_signal_handlers(stop)
     logger.info(

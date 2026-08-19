@@ -36,6 +36,19 @@
       <h2>{{ data.page_overview }}</h2>
       <section><h3>中文翻译</h3><p class="long-text">{{ data.chinese_translation }}</p></section>
       <section><h3>详细解释</h3><p class="long-text">{{ data.detailed_explanation }}</p></section>
+      {% if data.formula_explanation.has_formula %}
+      <section><h3>公式解析</h3>
+        {% for formula in data.formula_explanation.formulas %}
+        <div class="formula-card">
+          <h4>{{ formula.name }}</h4><code class="formula">{{ formula.latex }}</code>
+          <p class="long-text">{{ formula.explanation }}</p>
+          {% if formula.variables %}<dl class="term-list">{% for variable in formula.variables %}<div><dt>{{ variable.symbol }}</dt><dd>{{ variable.meaning }}</dd></div>{% endfor %}</dl>{% endif %}
+          {% if formula.assumptions %}<p><strong>假设：</strong>{{ formula.assumptions|join("；") }}</p>{% endif %}
+          {% if formula.derivation.is_derived %}<ol>{% for step in formula.derivation.steps %}<li>{{ step }}</li>{% endfor %}</ol><p>{{ formula.derivation.result_check }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </section>
+      {% endif %}
       {% if data.key_points %}<section><h3>关键点</h3><ul>{% for point in data.key_points %}<li>{{ point }}</li>{% endfor %}</ul></section>{% endif %}
       {% if data.bilingual_terms %}<section><h3>双语术语</h3><dl class="term-list">{% for term in data.bilingual_terms %}<div><dt>{{ term.term_en }} · {{ term.term_zh }}</dt><dd>{{ term.definition }}</dd></div>{% endfor %}</dl></section>{% endif %}
     {% else %}

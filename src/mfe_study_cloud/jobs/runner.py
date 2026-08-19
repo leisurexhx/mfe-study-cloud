@@ -10,12 +10,13 @@ from types import TracebackType
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from mfe_study_cloud.analysis.errors import AnalysisError
+from mfe_study_cloud.analysis.errors import AnalysisError, ProviderQuotaError
 from mfe_study_cloud.analysis.pdf_batches import PdfBatch, split_pdf
 from mfe_study_cloud.analysis.provider import AnalysisProvider, AnalysisRequest
 from mfe_study_cloud.config import Settings
 from mfe_study_cloud.db.session import session_scope
 from mfe_study_cloud.jobs.errors import LeaseLostError
+from mfe_study_cloud.jobs.rate_limit import ProviderRateLimiter
 from mfe_study_cloud.jobs.repository import JobQueueRepository
 from mfe_study_cloud.storage import ObjectStore
 
@@ -31,11 +32,15 @@ class WorkerRunner:
         provider: AnalysisProvider,
         settings: Settings,
         worker_id: str | None = None,
+        rate_limiter: ProviderRateLimiter | None = None,
     ) -> None:
         self._sessions = sessions
         self._objects = object_store
         self._provider = provider
         self._settings = settings
+        self._rate_limiter = rate_limiter or ProviderRateLimiter(
+            settings.analysis_requests_per_minute
+        )
         self.worker_id = worker_id or f"worker-{uuid.uuid4()}"
 
     def process_one(self) -> bool:
@@ -69,6 +74,19 @@ class WorkerRunner:
                 document_sha256 = document.sha256
                 object_key = document.object_key
                 next_page = job.next_page
+                output_tokens = job.output_tokens
+
+            if (
+                output_tokens + self._settings.analysis_max_output_tokens
+                > self._settings.analysis_job_max_output_tokens
+            ):
+                self._record_failure(
+                    tenant_id=tenant_id,
+                    job_id=job_id,
+                    retryable=False,
+                    summary="Analysis job reached the configured output-token budget.",
+                )
+                return True
 
             raw = self._objects.get(object_key)
             batch = self._batch_for(raw, next_page)
@@ -80,6 +98,7 @@ class WorkerRunner:
                 last_page=batch.last_page,
             )
             with _LeaseHeartbeat(self, tenant_id=tenant_id, job_id=job_id):
+                self._rate_limiter.acquire()
                 result = self._provider.analyze(request)
             with session_scope(self._sessions) as session:
                 JobQueueRepository(session).complete_batch(
@@ -214,6 +233,8 @@ class _LeaseHeartbeat(AbstractContextManager[None]):
 
 
 def _safe_failure_summary(error: AnalysisError) -> str:
+    if isinstance(error, ProviderQuotaError):
+        return "Provider quota is unavailable; an administrator must review billing."
     if error.retryable:
         return "The analysis provider is temporarily unavailable."
     return "The analysis provider could not accept this PDF batch."

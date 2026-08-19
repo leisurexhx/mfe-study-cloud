@@ -1,0 +1,30 @@
+services:
+  web:
+    ports: !reset []
+
+  minio:
+    ports: !reset []
+    environment:
+      MINIO_KMS_SECRET_KEY: ${MFE_MINIO_KMS_SECRET_KEY:?Set a MinIO KMS key as name:base64-value}
+
+  caddy:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    environment:
+      MFE_DOMAIN: ${MFE_DOMAIN:?Set MFE_DOMAIN to the public hostname}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    networks: [backend]
+
+volumes:
+  caddy_data:
+  caddy_config:

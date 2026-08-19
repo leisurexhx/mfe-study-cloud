@@ -6,6 +6,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -46,6 +47,17 @@ def analysis_idempotency_key(
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+@dataclass(frozen=True, slots=True)
+class RecentJob:
+    id: uuid.UUID
+    document_id: uuid.UUID
+    document_title: str
+    status: str
+    completed_pages: int
+    total_pages: int
+    error_summary: str | None
+
+
 class TenantJobRepository:
     def __init__(self, session: Session, tenant_id: uuid.UUID) -> None:
         self._session = session
@@ -77,6 +89,39 @@ class TenantJobRepository:
             .order_by(AnalysisJob.created_at.desc(), AnalysisJob.id.desc())
             .limit(1)
         )
+
+    def recent(self, *, limit: int = 6) -> list[RecentJob]:
+        rows = self._session.execute(
+            select(
+                AnalysisJob.id,
+                AnalysisJob.document_id,
+                Document.title,
+                AnalysisJob.status,
+                AnalysisJob.completed_pages,
+                AnalysisJob.total_pages,
+                AnalysisJob.error_summary,
+            )
+            .join(
+                Document,
+                (Document.id == AnalysisJob.document_id)
+                & (Document.tenant_id == AnalysisJob.tenant_id),
+            )
+            .where(AnalysisJob.tenant_id == self.tenant_id)
+            .order_by(AnalysisJob.created_at.desc(), AnalysisJob.id.desc())
+            .limit(max(1, min(limit, 20)))
+        )
+        return [
+            RecentJob(
+                id=row.id,
+                document_id=row.document_id,
+                document_title=row.title,
+                status=row.status,
+                completed_pages=row.completed_pages,
+                total_pages=row.total_pages,
+                error_summary=row.error_summary,
+            )
+            for row in rows
+        ]
 
     def add_job(
         self,

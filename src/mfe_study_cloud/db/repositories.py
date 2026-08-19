@@ -42,6 +42,15 @@ class SearchHit:
     text: str
 
 
+@dataclass(frozen=True, slots=True)
+class RecentReading:
+    document_id: uuid.UUID
+    document_title: str
+    course_name: str
+    last_page: int
+    page_count: int
+
+
 class AuthRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -319,6 +328,46 @@ class StudyRepository:
                 ReadingProgress.document_id == document_id,
             )
         )
+
+    def recent_reading(self, *, user_id: uuid.UUID, limit: int = 6) -> list[RecentReading]:
+        rows = self._session.execute(
+            select(
+                ReadingProgress.document_id,
+                Document.title,
+                Course.name,
+                ReadingProgress.last_page,
+                Document.page_count,
+            )
+            .join(
+                Document,
+                (Document.id == ReadingProgress.document_id)
+                & (Document.tenant_id == ReadingProgress.tenant_id),
+            )
+            .join(
+                Course,
+                (Course.id == Document.course_id)
+                & (Course.tenant_id == Document.tenant_id),
+            )
+            .where(
+                ReadingProgress.tenant_id == self.tenant_id,
+                ReadingProgress.user_id == user_id,
+            )
+            .order_by(
+                ReadingProgress.last_read_at.desc(),
+                ReadingProgress.document_id,
+            )
+            .limit(max(1, min(limit, 20)))
+        )
+        return [
+            RecentReading(
+                document_id=row.document_id,
+                document_title=row.title,
+                course_name=row.name,
+                last_page=row.last_page,
+                page_count=row.page_count,
+            )
+            for row in rows
+        ]
 
     def search(self, query: str, *, limit: int = 50) -> list[SearchHit]:
         pattern = f"%{query}%"

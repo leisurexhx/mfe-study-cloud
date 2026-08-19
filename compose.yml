@@ -1,0 +1,111 @@
+name: mfe-study-cloud
+
+x-app-environment: &app-environment
+  MFE_ENV: ${MFE_ENV:-development}
+  MFE_PUBLIC_BASE_URL: ${MFE_PUBLIC_BASE_URL:-http://localhost:8080}
+  MFE_SESSION_SECRET: ${MFE_SESSION_SECRET:-development-session-secret-change-me}
+  MFE_DATABASE_URL: postgresql+psycopg://mfe:${MFE_POSTGRES_PASSWORD:-mfe-development-only}@postgres:5432/mfe
+  MFE_OBJECT_ENDPOINT: http://minio:9000
+  MFE_OBJECT_BUCKET: ${MFE_OBJECT_BUCKET:-mfe-study}
+  MFE_OBJECT_ACCESS_KEY: ${MFE_OBJECT_ACCESS_KEY:-mfe-development-only}
+  MFE_OBJECT_SECRET_KEY: ${MFE_OBJECT_SECRET_KEY:-mfe-development-only-secret}
+  MFE_OBJECT_SECURE: "false"
+  MFE_OBJECT_SSE: ${MFE_OBJECT_SSE:-none}
+  MFE_ANALYSIS_PROVIDER: ${MFE_ANALYSIS_PROVIDER:-fake}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-}
+  MFE_ANALYSIS_BATCH_PAGES: ${MFE_ANALYSIS_BATCH_PAGES:-5}
+  MFE_ANALYSIS_MAX_CONCURRENT_JOBS: ${MFE_ANALYSIS_MAX_CONCURRENT_JOBS:-2}
+  MFE_ANALYSIS_MAX_OUTPUT_TOKENS: ${MFE_ANALYSIS_MAX_OUTPUT_TOKENS:-20000}
+  MFE_ANALYSIS_JOB_MAX_OUTPUT_TOKENS: ${MFE_ANALYSIS_JOB_MAX_OUTPUT_TOKENS:-200000}
+  MFE_ANALYSIS_REQUESTS_PER_MINUTE: ${MFE_ANALYSIS_REQUESTS_PER_MINUTE:-60}
+  MFE_ANALYSIS_JOB_LEASE_SECONDS: ${MFE_ANALYSIS_JOB_LEASE_SECONDS:-300}
+  MFE_ANALYSIS_MAX_ATTEMPTS: ${MFE_ANALYSIS_MAX_ATTEMPTS:-3}
+  MFE_SECURE_COOKIES: ${MFE_SECURE_COOKIES:-false}
+  MFE_ALLOWED_HOSTS: ${MFE_ALLOWED_HOSTS:-localhost,127.0.0.1}
+  MFE_LOG_LEVEL: ${MFE_LOG_LEVEL:-INFO}
+
+services:
+  postgres:
+    image: postgres:17.10-alpine3.23
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mfe
+      POSTGRES_USER: mfe
+      POSTGRES_PASSWORD: ${MFE_POSTGRES_PASSWORD:-mfe-development-only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mfe -d mfe"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  minio:
+    build:
+      context: .
+      dockerfile: deploy/minio/Dockerfile
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MFE_OBJECT_ACCESS_KEY:-mfe-development-only}
+      MINIO_ROOT_PASSWORD: ${MFE_OBJECT_SECRET_KEY:-mfe-development-only-secret}
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - object_data:/data
+    ports:
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [backend]
+
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [backend]
+
+  web:
+    build: .
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [backend]
+
+  worker:
+    build: .
+    command: ["mfe-study-worker"]
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+    networks: [backend]
+
+volumes:
+  postgres_data:
+  object_data:
+
+networks:
+  backend:
+    internal: false

@@ -166,6 +166,9 @@ def test_complete_browser_and_json_api_flow_with_fake_worker(web: WebContext) ->
     assert job_response.json()["status"] == "completed"
     analyzed_reader = web.client.get(f"/documents/{document_id}?page=1")
     assert "第 1 页匿名演示内容" in analyzed_reader.text
+    formula_reader = web.client.get(f"/documents/{document_id}?page=2")
+    assert "公式解析" in formula_reader.text
+    assert "Present value demo" in formula_reader.text
 
     note = web.client.post(
         f"/documents/{document_id}/notes",
@@ -188,6 +191,10 @@ def test_complete_browser_and_json_api_flow_with_fake_worker(web: WebContext) ->
     )
     assert progress.status_code == 200
     assert progress.json()["is_completed"] is True
+    dashboard = web.client.get("/dashboard")
+    assert "继续阅读" in dashboard.text
+    assert "分析进度" in dashboard.text
+    assert "Anonymous Web Fixture" in dashboard.text
 
 
 def test_http_document_boundary_hides_another_tenants_pdf(
@@ -226,9 +233,35 @@ def test_pwa_manifest_and_worker_cache_only_public_assets(web: WebContext) -> No
     assert "/documents/" not in worker.text
     assert "cache.put" not in worker.text
     assert re.search(r"request\.mode === \"navigate\"", worker.text)
+    openapi = web.client.get("/api/openapi.json")
+    assert openapi.status_code == 200
+    assert openapi.json()["info"]["version"] == "1.0.0-rc.1"
 
 
 def test_api_requires_authentication(web: WebContext) -> None:
     response = web.client.get(f"/api/v1/jobs/{uuid.uuid4()}")
     assert response.status_code == 401
     assert response.json()["detail"] == "Authentication required."
+
+
+def test_disabled_provider_explains_that_an_administrator_must_configure_it(
+    sessions: sessionmaker[Session],
+) -> None:
+    settings = Settings(
+        MFE_ENV="test",
+        MFE_PUBLIC_BASE_URL=ORIGIN,
+        MFE_ALLOWED_HOSTS="testserver",
+        MFE_ANALYSIS_PROVIDER="disabled",
+    )
+    objects = InMemoryObjectStore()
+    app = create_app(settings=settings, sessions=sessions, object_store=objects)
+    with TestClient(app, base_url=ORIGIN) as client:
+        _register(client, email="disabled-provider@example.test")
+        document_id = _create_uploaded_document(client, sessions)
+        response = client.post(
+            f"/documents/{document_id}/analysis",
+            headers=_csrf_headers(client),
+        )
+
+    assert response.status_code == 400
+    assert "disabled until a server provider is configured" in response.text

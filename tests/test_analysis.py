@@ -8,7 +8,11 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator
 
-from mfe_study_cloud.analysis.errors import ProviderDisabledError, ProviderSchemaError
+from mfe_study_cloud.analysis.errors import (
+    ProviderDisabledError,
+    ProviderQuotaError,
+    ProviderSchemaError,
+)
 from mfe_study_cloud.analysis.models import BatchAnalysisOutput
 from mfe_study_cloud.analysis.provider import (
     AnalysisRequest,
@@ -36,6 +40,9 @@ def test_fake_provider_is_deterministic_and_network_free() -> None:
 
     assert first.output == second.output
     assert [page.page_number for page in first.output.pages] == [1, 2]
+    assert first.output.pages[1].formula_explanation.formulas[0].latex == (
+        r"PV = \frac{CF}{(1+r)^t}"
+    )
     assert first.input_tokens == first.output_tokens == 0
     assert first.provider == "fake"
 
@@ -58,6 +65,14 @@ class _ResponsesProbe:
             output=[],
             usage=SimpleNamespace(input_tokens=12, output_tokens=34),
         )
+
+
+class _QuotaResponses:
+    def parse(self, **kwargs: Any) -> Any:
+        del kwargs
+        error = RuntimeError("provider message must not reach the UI")
+        error.code = "insufficient_quota"  # type: ignore[attr-defined]
+        raise error
 
 
 def test_openai_provider_keeps_key_server_side_and_uses_structured_pdf_input() -> None:
@@ -99,6 +114,21 @@ def test_openai_provider_rejects_wrong_page_mapping() -> None:
 
     with pytest.raises(ProviderSchemaError, match="expected"):
         OpenAIResponsesProvider(settings, client=client).analyze(request(1, 1))
+
+
+def test_openai_quota_failure_is_non_retryable_and_typed() -> None:
+    settings = Settings(
+        MFE_ENV="test",
+        MFE_ANALYSIS_PROVIDER="openai",
+        OPENAI_API_KEY="server-only-test-key",
+        OPENAI_MODEL="configured-model",
+    )
+    client = SimpleNamespace(responses=_QuotaResponses())
+
+    with pytest.raises(ProviderQuotaError, match="administrator") as captured:
+        OpenAIResponsesProvider(settings, client=client).analyze(request())
+
+    assert captured.value.retryable is False
 
 
 def test_checked_in_schema_accepts_fake_output() -> None:

@@ -12,7 +12,11 @@ from mfe_study_cloud.config import Settings
 from mfe_study_cloud.db.models import AnalysisJob
 from mfe_study_cloud.db.repositories import StudyRepository, TenantPrincipal
 from mfe_study_cloud.db.session import session_scope
-from mfe_study_cloud.jobs.repository import TenantJobRepository, analysis_idempotency_key
+from mfe_study_cloud.jobs.repository import (
+    RecentJob,
+    TenantJobRepository,
+    analysis_idempotency_key,
+)
 from mfe_study_cloud.services.errors import NotFoundError, ValidationError
 
 
@@ -98,6 +102,10 @@ class JobService:
             return TenantJobRepository(
                 session, principal.tenant_id
             ).latest_for_document(document_id)
+
+    def recent(self, principal: TenantPrincipal) -> list[RecentJob]:
+        with self._sessions() as session:
+            return TenantJobRepository(session, principal.tenant_id).recent()
 
     def cancel(self, principal: TenantPrincipal, *, job_id: uuid.UUID) -> AnalysisJob:
         with session_scope(self._sessions) as session:

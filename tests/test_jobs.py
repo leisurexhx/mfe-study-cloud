@@ -7,7 +7,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from mfe_study_cloud.analysis.errors import ProviderSchemaError, ProviderTransientError
+from mfe_study_cloud.analysis.errors import (
+    ProviderQuotaError,
+    ProviderSchemaError,
+    ProviderTransientError,
+)
 from mfe_study_cloud.analysis.provider import (
     AnalysisProvider,
     AnalysisRequest,
@@ -15,9 +19,10 @@ from mfe_study_cloud.analysis.provider import (
     FakeAnalysisProvider,
 )
 from mfe_study_cloud.config import Settings
-from mfe_study_cloud.db.models import Document, PageAnalysis
+from mfe_study_cloud.db.models import AnalysisJob, Document, PageAnalysis
 from mfe_study_cloud.db.repositories import TenantPrincipal
 from mfe_study_cloud.db.session import session_scope
+from mfe_study_cloud.jobs.rate_limit import ProviderRateLimiter
 from mfe_study_cloud.jobs.repository import JobQueueRepository
 from mfe_study_cloud.jobs.runner import WorkerRunner
 from mfe_study_cloud.services.auth import AuthService
@@ -45,6 +50,14 @@ class FlakyProvider:
         if self.fail_from_page is not None and request.first_page >= self.fail_from_page:
             raise ProviderSchemaError("test permanent failure")
         return self._fake.analyze(request)
+
+
+class QuotaProvider:
+    name = "openai"
+
+    def analyze(self, request: AnalysisRequest) -> AnalysisResult:
+        del request
+        raise ProviderQuotaError("raw provider detail must stay private")
 
 
 def _settings(*, batch_pages: int = 1, attempts: int = 3) -> Settings:
@@ -272,3 +285,68 @@ def test_expired_lease_is_reclaimed_and_old_owner_cannot_heartbeat(
             )
             is False
         )
+
+
+def test_rate_limiter_paces_calls_in_a_shared_rolling_window() -> None:
+    now = [0.0]
+    waits: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        now[0] += seconds
+
+    limiter = ProviderRateLimiter(2, clock=lambda: now[0], sleeper=sleep)
+    limiter.acquire()
+    limiter.acquire()
+    limiter.acquire()
+
+    assert waits == [60.0]
+
+
+def test_job_output_token_budget_stops_before_provider_call(
+    sessions: sessionmaker[Session],
+) -> None:
+    settings = Settings(
+        MFE_ENV="test",
+        MFE_ANALYSIS_PROVIDER="fake",
+        MFE_ANALYSIS_BATCH_PAGES=1,
+        MFE_ANALYSIS_MAX_OUTPUT_TOKENS=1000,
+        MFE_ANALYSIS_JOB_MAX_OUTPUT_TOKENS=1000,
+    )
+    principal, objects, document = _document_setup(
+        sessions, email="budget@example.test"
+    )
+    service = JobService(sessions, settings)
+    job = service.start(principal, document_id=document.id)
+    with session_scope(sessions) as session:
+        stored = session.get(AnalysisJob, job.id)
+        assert stored is not None
+        stored.output_tokens = 1
+    provider = FlakyProvider()
+
+    assert _runner(sessions, objects, provider, settings).process_one() is True
+
+    failed = service.status(principal, job_id=job.id)
+    assert failed.status == "failed"
+    assert failed.error_summary == "Analysis job reached the configured output-token budget."
+    assert provider.calls == 0
+
+
+def test_quota_failure_is_not_retried_or_exposed(
+    sessions: sessionmaker[Session],
+) -> None:
+    settings = _settings(batch_pages=2, attempts=3)
+    principal, objects, document = _document_setup(
+        sessions, email="quota@example.test"
+    )
+    service = JobService(sessions, settings)
+    job = service.start(principal, document_id=document.id)
+
+    assert _runner(sessions, objects, QuotaProvider(), settings).process_one() is True
+
+    failed = service.status(principal, job_id=job.id)
+    assert failed.status == "failed"
+    assert failed.error_summary == (
+        "Provider quota is unavailable; an administrator must review billing."
+    )
+    assert "raw provider detail" not in failed.error_summary

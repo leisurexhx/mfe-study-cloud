@@ -60,6 +60,7 @@ class InMemoryObjectStore:
 class S3ObjectStore:
     def __init__(self, settings: Settings, *, client: Any | None = None) -> None:
         self._bucket = settings.object_bucket
+        self._sse = settings.object_sse
         if client is None:
             import boto3
 
@@ -82,15 +83,26 @@ class S3ObjectStore:
             code = str(exc.response.get("Error", {}).get("Code", ""))
             if code not in {"404", "NoSuchBucket", "NotFound"}:
                 raise
-            self._client.create_bucket(Bucket=self._bucket)
+            try:
+                self._client.create_bucket(Bucket=self._bucket)
+            except ClientError as create_error:
+                create_code = str(
+                    create_error.response.get("Error", {}).get("Code", "")
+                )
+                if create_code != "BucketAlreadyOwnedByYou":
+                    raise
 
     def put(self, key: str, data: bytes, *, content_type: str) -> None:
+        arguments: dict[str, Any] = {
+            "Bucket": self._bucket,
+            "Key": key,
+            "Body": data,
+            "ContentType": content_type,
+        }
+        if self._sse == "AES256":
+            arguments["ServerSideEncryption"] = "AES256"
         self._client.put_object(
-            Bucket=self._bucket,
-            Key=key,
-            Body=data,
-            ContentType=content_type,
-            ServerSideEncryption="AES256",
+            **arguments,
         )
 
     def get(self, key: str) -> bytes:
